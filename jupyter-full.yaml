@@ -1,0 +1,176 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-pyspark-notebook
+  namespace: my-pyspark-notebook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+  name: my-pyspark-notebook
+  namespace: my-pyspark-notebook
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+  name: my-pyspark-notebook-rb
+  namespace: my-pyspark-notebook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "cluster-admin"
+subjects:
+  - kind: ServiceAccount
+    name: my-pyspark-notebook
+    namespace: my-pyspark-notebook
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+  name: my-pyspark-notebook-configmap
+  namespace: my-pyspark-notebook
+data:
+  "jupyter_notebook_config.py": |-
+    c.NotebookApp.base_url = '/jupyter'
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+    "app.kubernetes.io/component": jupyter
+    "storage.purpose": "notebooks"
+  name: my-pyspark-notebook-jupyter-notebook-volume
+  namespace: my-pyspark-notebook
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: '5Gi'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+    "app.kubernetes.io/component": jupyter
+    sparkRole: driver
+  name: my-pyspark-notebook
+  namespace: my-pyspark-notebook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      "app.kubernetes.io/component": jupyter
+      sparkRole: driver
+      "app.kubernetes.io/instance": "my-pyspark-notebook"
+  template:
+    metadata:
+      labels:
+        "app.kubernetes.io/component": jupyter
+        sparkRole: driver
+        "app.kubernetes.io/instance": "my-pyspark-notebook"
+    spec:
+      containers:
+        - name: jupyter
+          image: mdstech/pyspark-notebook:v2.4.0
+          volumeMounts:
+            - name: my-pyspark-notebook-config-volume
+              mountPath: "/root/.jupyter"
+            - name: my-pyspark-notebook-notebooks
+              mountPath: /jupyter
+      serviceAccountName: my-pyspark-notebook
+      volumes:
+        - name: my-pyspark-notebook-config-volume
+          configMap:
+            name: my-pyspark-notebook-configmap
+        - name: my-pyspark-notebook-notebooks
+          persistentVolumeClaim:
+            claimName: my-pyspark-notebook-jupyter-notebook-volume
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+  name: my-pyspark-notebook-spark-driver
+  namespace: my-pyspark-notebook
+spec:
+  selector:
+    sparkRole: driver
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+  clusterIP: None
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+  name: my-pyspark-notebook-spark-ui
+  namespace: my-pyspark-notebook
+spec:
+  selector:
+    sparkRole: driver
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+  ports:
+    - protocol: TCP
+      port: 4040
+      targetPort: 4040
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    "app.kubernetes.io/name": "my-pyspark-notebook"
+    "helm.sh/chart": "pyspark-notebook-0.1.0"
+    "app.kubernetes.io/managed-by": tiller
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+    "app.kubernetes.io/version": "spark-2.4.0-hadoop-2.6"
+  name: my-pyspark-notebook-jupyter-ui
+  namespace: my-pyspark-notebook
+spec:
+  selector:
+    sparkRole: driver
+    "app.kubernetes.io/instance": "my-pyspark-notebook"
+  ports:
+    - protocol: TCP
+      port: 8888
+      nodePort: 30001
+  type: NodePort
+---
